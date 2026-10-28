@@ -1,28 +1,33 @@
 {
   "name": "@chubbyts/chubbyts-http",
   "type": "module",
-  "version": "2.0.1",
-  "description": "Http Request/Response with middleware and handler, PSR-15 inspired.",
+  "version": "3.0.0",
+  "description": "Http Request/Response factories, PSR-17 inspired.",
   "keywords": [
     "chubbyts",
     "request",
     "server-request",
     "response",
+    "uri",
     "middleware",
     "handler",
-    "psr-15"
+    "factory",
+    "helper",
+    "psr-7",
+    "psr-15",
+    "psr-17"
   ],
   "author": "Dominik Zogg",
   "license": "MIT",
   "repository": "chubbyts/chubbyts-http",
   "scripts": {
-    "build": "tsc",
+    "build": "rm -Rf dist && tsc",
     "cs-fix": "prettier --write src tests",
     "cs": "prettier --check src tests",
     "infection": "stryker run",
-    "lint-fix": "eslint src tests eslint.config.js vitest.config.ts --fix",
-    "lint": "eslint src tests",
-    "prepare": "npm run build",
+    "lint-fix": "oxlint --fix src tests vitest.config.ts",
+    "lint": "oxlint src tests vitest.config.ts",
+    "prepare": "pnpm run build",
     "test": "vitest"
   },
   "prettier": {
@@ -36,30 +41,32 @@
   ],
   "exports": {
     "./*": {
-      "types": "./*.d.ts",
-      "import": "./*.js",
-      "default": "./*.js"
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js",
+      "default": "./dist/*.js"
     }
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
-    "@chubbyts/chubbyts-http-types": "^3.0.0",
-    "qs": "^6.14.0"
+    "@chubbyts/chubbyts-http-types": "^4.0.0",
+    "qs": "^6.17.0"
   },
   "devDependencies": {
-    "@chubbyts/chubbyts-eslint": "^4.0.2",
-    "@stryker-mutator/core": "^9.0.1",
-    "@stryker-mutator/vitest-runner": "^9.0.1",
-    "@types/node": "^24.0.1",
-    "@types/qs": "^6.14.0",
-    "@vitest/coverage-v8": "^3.2.3",
-    "prettier": "^3.5.3",
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.3"
+    "@chubbyts/chubbyts-oxlint": "^1.0.2",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
+    "@types/node": "^26.6.5",
+    "@types/qs": "^6.15.1",
+    "@vitest/coverage-v8": "^4.1.12",
+    "oxlint": "^1.89.0",
+    "prettier": "^3.9.10",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.12"
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "packageManager": "pnpm@11.28.6+sha512.55d90390c3b39042f1505a2697789f0256c6d95bb28bdd7cb731af1887c9f2629ef581acb9f4e4ec772024c8203c2aed22a03299b97103fdcf32668e905d0024"
 }

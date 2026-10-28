@@ -1,62 +1,46 @@
-import { createReadStream, existsSync } from 'fs';
-import type { Duplex, Stream } from 'stream';
-import { PassThrough } from 'stream';
-import type { Method, Query, Request, Response, ServerRequest, Uri } from '@chubbyts/chubbyts-http-types/dist/message';
-import { statusMap } from '@chubbyts/chubbyts-http-types/dist/message';
+import { createReadStream, statSync } from 'node:fs';
+import { STATUS_CODES } from 'node:http';
+import { Readable } from 'node:stream';
+import type { Body, Method, Request, Response, ServerRequest, Uri } from '@chubbyts/chubbyts-http-types/message';
 import type {
   RequestFactory,
   ResponseFactory,
   ServerRequestFactory,
   StreamFactory,
   StreamFromFileFactory,
-  StreamFromResourceFactory,
   UriFactory,
-} from '@chubbyts/chubbyts-http-types/dist/message-factory';
-import { parse as queryParser } from 'qs';
+} from '@chubbyts/chubbyts-http-types/message-factory';
 
 export const createUriFactory = (): UriFactory => {
   return (uri: string): Uri => {
     const { protocol, username, password, hostname, port, pathname, search, hash } = new URL(uri);
 
     return {
-      schema: protocol.substring(0, protocol.length - 1),
-      userInfo: password !== '' ? username + ':' + password : username,
+      scheme: protocol.substring(0, protocol.length - 1),
+      userInfo: password !== '' ? `${username}:${password}` : username,
       host: hostname,
-      port: port ? parseInt(port, 10) : undefined,
+      port: port ? Number.parseInt(port, 10) : undefined,
       path: pathname,
-      query: search ? (queryParser(search.substring(1)) as Query) : {},
+      query: search.substring(1),
       fragment: hash ? hash.substring(1) : '',
     };
   };
 };
 
 export const createStreamFactory = (): StreamFactory => {
-  return (content: string): Duplex => {
-    const stream = new PassThrough();
-    stream.write(content);
-
-    return stream;
-  };
+  // not in object mode: the chunks of a body have to be bytes
+  return (content: string): Body => Readable.from([Buffer.from(content)], { objectMode: false });
 };
 
-export const createStreamFromResourceFactory = (): StreamFromResourceFactory => {
-  return (stream: Stream): Duplex => {
-    const newStream = new PassThrough();
-    stream.pipe(newStream);
-
-    return newStream;
-  };
-};
-
-export const createStreamFromFileFactory = (
-  streamFromResourceFactory: StreamFromResourceFactory = createStreamFromResourceFactory(),
-): StreamFromFileFactory => {
-  return (filename: string): Duplex => {
-    if (!existsSync(filename)) {
+export const createStreamFromFileFactory = (): StreamFromFileFactory => {
+  return (filename: string): Body => {
+    // a directory exists as well, but would fail asynchronously while reading
+    if (!statSync(filename, { throwIfNoEntry: false })?.isFile()) {
       throw new Error(`File with filename: "${filename}" does not exists.`);
     }
 
-    return streamFromResourceFactory(createReadStream(filename));
+    // read errors get thrown while iterating the body
+    return createReadStream(filename);
   };
 };
 
@@ -67,10 +51,12 @@ export const createRequestFactory = (
   return (method: Method, uri: string | Uri): Request => {
     return {
       method,
-      uri: typeof uri !== 'string' ? { ...uri } : uriFactory(uri),
-      protocolVersion: '1.0',
+      uri: typeof uri === 'string' ? uriFactory(uri) : uri,
+      protocolVersion: '1.1',
       headers: {},
       body: streamFactory(''),
+      // one controller per request, a shared never aborted signal would collect the listeners of all requests
+      signal: new AbortController().signal,
     };
   };
 };
@@ -86,17 +72,12 @@ export const createServerRequestFactory = (
   };
 };
 
-/**
- * @deprecated Use `statusMap` (import { statusMap } from '@chubbyts/chubbyts-http-types/dist/message';).
- */
-export const statusCodeMap = statusMap;
-
 export const createResponseFactory = (streamFactory: StreamFactory = createStreamFactory()): ResponseFactory => {
   return (status: number, reasonPhrase?: string): Response => {
     return {
       status,
-      reasonPhrase: reasonPhrase ?? statusMap.get(status) ?? '',
-      protocolVersion: '1.0',
+      reasonPhrase: reasonPhrase ?? STATUS_CODES[status] ?? '',
+      protocolVersion: '1.1',
       headers: {},
       body: streamFactory(''),
     };

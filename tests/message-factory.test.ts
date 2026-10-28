@@ -1,29 +1,17 @@
-import { randomBytes } from 'crypto';
-import { createReadStream, unlinkSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { PassThrough, Stream } from 'stream';
+import { randomBytes } from 'node:crypto';
+import { mkdirSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import type { Readable } from 'node:stream';
+import { text as readStream } from 'node:stream/consumers';
 import { describe, expect, test } from 'vitest';
 import {
   createUriFactory,
   createStreamFactory,
   createStreamFromFileFactory,
-  createStreamFromResourceFactory,
   createServerRequestFactory,
   createRequestFactory,
   createResponseFactory,
-  statusCodeMap,
-} from '../src/message-factory';
-
-const readStream = async (stream: Stream) => {
-  return new Promise((resolve, reject) => {
-    // eslint-disable-next-line functional/no-let
-    let data = '';
-
-    stream.on('data', (chunk) => (data += chunk));
-    stream.on('end', () => resolve(data));
-    stream.on('error', reject);
-  });
-};
+} from '../src/message-factory.js';
 
 describe('message-factory', () => {
   describe('createUriFactory', () => {
@@ -36,8 +24,8 @@ describe('message-factory', () => {
           "host": "localhost",
           "path": "/",
           "port": undefined,
-          "query": {},
-          "schema": "https",
+          "query": "",
+          "scheme": "https",
           "userInfo": "",
         }
       `);
@@ -52,8 +40,8 @@ describe('message-factory', () => {
           "host": "localhost",
           "path": "/",
           "port": 10443,
-          "query": {},
-          "schema": "https",
+          "query": "",
+          "scheme": "https",
           "userInfo": "",
         }
       `);
@@ -68,8 +56,8 @@ describe('message-factory', () => {
           "host": "localhost",
           "path": "/",
           "port": 10443,
-          "query": {},
-          "schema": "https",
+          "query": "",
+          "scheme": "https",
           "userInfo": "user",
         }
       `);
@@ -84,8 +72,8 @@ describe('message-factory', () => {
           "host": "localhost",
           "path": "/",
           "port": 10443,
-          "query": {},
-          "schema": "https",
+          "query": "",
+          "scheme": "https",
           "userInfo": "user:password",
         }
       `);
@@ -100,8 +88,8 @@ describe('message-factory', () => {
           "host": "localhost",
           "path": "/api",
           "port": 10443,
-          "query": {},
-          "schema": "https",
+          "query": "",
+          "scheme": "https",
           "userInfo": "user:password",
         }
       `);
@@ -112,24 +100,16 @@ describe('message-factory', () => {
 
       expect(uriFactory('https://user:password@localhost:10443/api?key1=value1&key2[]=value2&key3[key31]=value3'))
         .toMatchInlineSnapshot(`
-        {
-          "fragment": "",
-          "host": "localhost",
-          "path": "/api",
-          "port": 10443,
-          "query": {
-            "key1": "value1",
-            "key2": [
-              "value2",
-            ],
-            "key3": {
-              "key31": "value3",
-            },
-          },
-          "schema": "https",
-          "userInfo": "user:password",
-        }
-      `);
+          {
+            "fragment": "",
+            "host": "localhost",
+            "path": "/api",
+            "port": 10443,
+            "query": "key1=value1&key2[]=value2&key3[key31]=value3",
+            "scheme": "https",
+            "userInfo": "user:password",
+          }
+        `);
     });
 
     test('with user, password, host, port, path, query and fragment', () => {
@@ -141,49 +121,31 @@ describe('message-factory', () => {
           "host": "localhost",
           "path": "/api",
           "port": 10443,
-          "query": {
-            "key": "value",
-          },
-          "schema": "https",
+          "query": "key=value",
+          "scheme": "https",
           "userInfo": "user:password",
         }
       `);
     });
   });
 
-  test('createStreamFactory', async () => {
-    const streamFactory = createStreamFactory();
-    const stream = streamFactory('test');
-    stream.end();
+  describe('createStreamFactory', () => {
+    test('with content', async () => {
+      const streamFactory = createStreamFactory();
 
-    expect(await readStream(stream)).toBe('test');
-  });
-
-  describe('createStreamFromResourceFactory', () => {
-    test('with file PassThrough', async () => {
-      const existingStream = new PassThrough();
-      existingStream.write('test');
-      existingStream.end();
-
-      const streamFactory = createStreamFromResourceFactory();
-      const stream = streamFactory(existingStream);
-
-      expect(await readStream(stream)).toBe('test');
+      expect(await readStream(streamFactory('test'))).toBe('test');
     });
 
-    test('with file stream', async () => {
-      const filename = tmpdir() + '/' + randomBytes(8).toString('hex');
+    test('without content', async () => {
+      const streamFactory = createStreamFactory();
 
-      writeFileSync(filename, 'test');
+      expect(await readStream(streamFactory(''))).toBe('');
+    });
 
-      const existingStream = createReadStream(filename);
+    test('is not in object mode', () => {
+      const streamFactory = createStreamFactory();
 
-      const streamFactory = createStreamFromResourceFactory();
-      const stream = streamFactory(existingStream);
-
-      expect(await readStream(stream)).toBe('test');
-
-      unlinkSync(filename);
+      expect((streamFactory('test') as Readable).readableObjectMode).toBe(false);
     });
   });
 
@@ -194,6 +156,20 @@ describe('message-factory', () => {
       expect(() => {
         streamFactory('/path/to/unknown/file');
       }).toThrow('File with filename: "/path/to/unknown/file" does not exists.');
+    });
+
+    test('with directory', async () => {
+      const directory = tmpdir() + '/' + randomBytes(8).toString('hex');
+
+      mkdirSync(directory);
+
+      const streamFactory = createStreamFromFileFactory();
+
+      expect(() => {
+        streamFactory(directory);
+      }).toThrow(`File with filename: "${directory}" does not exists.`);
+
+      rmdirSync(directory);
     });
 
     test('with existing file', async () => {
@@ -215,11 +191,10 @@ describe('message-factory', () => {
       const requestFactory = createRequestFactory();
       const request = requestFactory('GET', 'https://localhost:10443/api');
 
-      const { body, ...rest } = request;
+      const { body, signal, ...rest } = request;
 
-      expect(body).toBeInstanceOf(Stream);
-
-      body.end();
+      expect(signal).toBeInstanceOf(AbortSignal);
+      expect(signal.aborted).toBe(false);
 
       expect(await readStream(body)).toBe('');
 
@@ -227,40 +202,43 @@ describe('message-factory', () => {
         {
           "headers": {},
           "method": "GET",
-          "protocolVersion": "1.0",
+          "protocolVersion": "1.1",
           "uri": {
             "fragment": "",
             "host": "localhost",
             "path": "/api",
             "port": 10443,
-            "query": {},
-            "schema": "https",
+            "query": "",
+            "scheme": "https",
             "userInfo": "",
           },
         }
       `);
     });
 
-    test('with uri as object', () => {
+    test('with uri as object', async () => {
       const requestFactory = createRequestFactory();
       const request = requestFactory('GET', createUriFactory()('https://localhost:10443/api'));
 
-      const { body, ...rest } = request;
+      const { body, signal, ...rest } = request;
 
-      expect(body).toBeInstanceOf(Stream);
+      expect(signal).toBeInstanceOf(AbortSignal);
+      expect(signal.aborted).toBe(false);
+
+      expect(await readStream(body)).toBe('');
 
       expect(rest).toMatchInlineSnapshot(`
         {
           "headers": {},
           "method": "GET",
-          "protocolVersion": "1.0",
+          "protocolVersion": "1.1",
           "uri": {
             "fragment": "",
             "host": "localhost",
             "path": "/api",
             "port": 10443,
-            "query": {},
-            "schema": "https",
+            "query": "",
+            "scheme": "https",
             "userInfo": "",
           },
         }
@@ -268,106 +246,40 @@ describe('message-factory', () => {
     });
   });
 
-  test('createServerRequestFactory', () => {
+  test('createRequestFactory creates a signal per request', () => {
+    const requestFactory = createRequestFactory();
+
+    expect(requestFactory('GET', 'https://localhost').signal).not.toBe(
+      requestFactory('GET', 'https://localhost').signal,
+    );
+  });
+
+  test('createServerRequestFactory', async () => {
     const serverRequestFactory = createServerRequestFactory();
     const serverRequest = serverRequestFactory('GET', 'https://localhost:10443/api');
 
-    const { body, ...rest } = serverRequest;
+    const { body, signal, ...rest } = serverRequest;
 
-    expect(body).toBeInstanceOf(Stream);
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal.aborted).toBe(false);
+
+    expect(await readStream(body)).toBe('');
 
     expect(rest).toMatchInlineSnapshot(`
       {
         "attributes": {},
         "headers": {},
         "method": "GET",
-        "protocolVersion": "1.0",
+        "protocolVersion": "1.1",
         "uri": {
           "fragment": "",
           "host": "localhost",
           "path": "/api",
           "port": 10443,
-          "query": {},
-          "schema": "https",
+          "query": "",
+          "scheme": "https",
           "userInfo": "",
         },
-      }
-    `);
-  });
-
-  test('statusCodeMap', () => {
-    expect(statusCodeMap).toMatchInlineSnapshot(`
-      Map {
-        100 => "Continue",
-        101 => "Switching Protocols",
-        102 => "Processing",
-        103 => "Early Hints",
-        110 => "Response is Stale",
-        111 => "Revalidation Failed",
-        112 => "Disconnected Operation",
-        113 => "Heuristic Expiration",
-        199 => "Miscellaneous Warning",
-        200 => "OK",
-        201 => "Created",
-        202 => "Accepted",
-        203 => "Non-Authoritative Information",
-        204 => "No Content",
-        205 => "Reset Content",
-        206 => "Partial Content",
-        207 => "Multi-Status",
-        208 => "Already Reported",
-        214 => "Transformation Applied",
-        226 => "IM Used",
-        299 => "Miscellaneous Persistent Warning",
-        300 => "Multiple Choices",
-        301 => "Moved Permanently",
-        302 => "Found",
-        303 => "See Other",
-        304 => "Not Modified",
-        305 => "Use Proxy",
-        306 => "Switch Proxy",
-        307 => "Temporary Redirect",
-        308 => "Permanent Redirect",
-        400 => "Bad Request",
-        401 => "Unauthorized",
-        402 => "Payment Required",
-        403 => "Forbidden",
-        404 => "Not Found",
-        405 => "Method Not Allowed",
-        406 => "Not Acceptable",
-        407 => "Proxy Authentication Required",
-        408 => "Request Timeout",
-        409 => "Conflict",
-        410 => "Gone",
-        411 => "Length Required",
-        412 => "Precondition Failed",
-        413 => "Payload Too Large",
-        414 => "URI Too Long",
-        415 => "Unsupported Media Type",
-        416 => "Range Not Satisfiable",
-        417 => "Expectation Failed",
-        418 => "I'm a teapot",
-        421 => "Misdirected Request",
-        422 => "Unprocessable Entity",
-        423 => "Locked",
-        424 => "Failed Dependency",
-        425 => "Too Early",
-        426 => "Upgrade Required",
-        428 => "Precondition Required",
-        429 => "Too Many Requests",
-        431 => "Request Header Fields Too Large",
-        451 => "Unavailable For Legal Reasons",
-        500 => "Internal Server Error",
-        501 => "Not Implemented",
-        502 => "Bad Gateway",
-        503 => "Service Unavailable",
-        504 => "Gateway Timeout",
-        505 => "HTTP Version Not Supported",
-        506 => "Variant Also Negotiates",
-        507 => "Insufficient Storage",
-        508 => "Loop Detected",
-        510 => "Not Extended",
-        511 => "Network Authentication Required",
       }
     `);
   });
@@ -379,52 +291,48 @@ describe('message-factory', () => {
 
       const { body, ...rest } = response;
 
-      expect(body).toBeInstanceOf(Stream);
-
-      body.end();
-
       expect(await readStream(body)).toBe('');
 
       expect(rest).toMatchInlineSnapshot(`
         {
           "headers": {},
-          "protocolVersion": "1.0",
+          "protocolVersion": "1.1",
           "reasonPhrase": "Not Found",
           "status": 404,
         }
       `);
     });
 
-    test('without reason phrase, but not found in map', () => {
+    test('without reason phrase, but not found in map', async () => {
       const responseFactory = createResponseFactory();
       const response = responseFactory(600);
 
       const { body, ...rest } = response;
 
-      expect(body).toBeInstanceOf(Stream);
+      expect(await readStream(body)).toBe('');
 
       expect(rest).toMatchInlineSnapshot(`
         {
           "headers": {},
-          "protocolVersion": "1.0",
+          "protocolVersion": "1.1",
           "reasonPhrase": "",
           "status": 600,
         }
       `);
     });
 
-    test('with reason phrase', () => {
+    test('with reason phrase', async () => {
       const responseFactory = createResponseFactory();
       const response = responseFactory(404, 'Not Found???!!!');
 
       const { body, ...rest } = response;
 
-      expect(body).toBeInstanceOf(Stream);
+      expect(await readStream(body)).toBe('');
 
       expect(rest).toMatchInlineSnapshot(`
         {
           "headers": {},
-          "protocolVersion": "1.0",
+          "protocolVersion": "1.1",
           "reasonPhrase": "Not Found???!!!",
           "status": 404,
         }
