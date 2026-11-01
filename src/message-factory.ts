@@ -3,11 +3,11 @@ import { STATUS_CODES } from 'node:http';
 import { Readable } from 'node:stream';
 import type { Body, Method, Request, Response, ServerRequest, Uri } from '@chubbyts/chubbyts-http-types/message';
 import type {
+  BodyFactory,
+  BodyFromFileFactory,
   RequestFactory,
   ResponseFactory,
   ServerRequestFactory,
-  StreamFactory,
-  StreamFromFileFactory,
   UriFactory,
 } from '@chubbyts/chubbyts-http-types/message-factory';
 
@@ -27,12 +27,12 @@ export const createUriFactory = (): UriFactory => {
   };
 };
 
-export const createStreamFactory = (): StreamFactory => {
+export const createBodyFactory = (): BodyFactory => {
   // not in object mode: the chunks of a body have to be bytes
   return (content: string): Body => Readable.from([Buffer.from(content)], { objectMode: false });
 };
 
-export const createStreamFromFileFactory = (): StreamFromFileFactory => {
+export const createBodyFromFileFactory = (): BodyFromFileFactory => {
   return (filename: string): Body => {
     // a directory exists as well, but would fail asynchronously while reading
     if (!statSync(filename, { throwIfNoEntry: false })?.isFile()) {
@@ -44,9 +44,15 @@ export const createStreamFromFileFactory = (): StreamFromFileFactory => {
   };
 };
 
+/** @deprecated use `createBodyFactory`, the body is not a stream anymore */
+export const createStreamFactory = createBodyFactory;
+
+/** @deprecated use `createBodyFromFileFactory`, the body is not a stream anymore */
+export const createStreamFromFileFactory = createBodyFromFileFactory;
+
 export const createRequestFactory = (
   uriFactory: UriFactory = createUriFactory(),
-  streamFactory: StreamFactory = createStreamFactory(),
+  bodyFactory: BodyFactory = createBodyFactory(),
 ): RequestFactory => {
   return (method: Method, uri: string | Uri): Request => {
     return {
@@ -54,7 +60,7 @@ export const createRequestFactory = (
       uri: typeof uri === 'string' ? uriFactory(uri) : uri,
       protocolVersion: '1.1',
       headers: {},
-      body: streamFactory(''),
+      body: bodyFactory(''),
       // one controller per request, a shared never aborted signal would collect the listeners of all requests
       signal: new AbortController().signal,
     };
@@ -72,14 +78,14 @@ export const createServerRequestFactory = (
   };
 };
 
-export const createResponseFactory = (streamFactory: StreamFactory = createStreamFactory()): ResponseFactory => {
+export const createResponseFactory = (bodyFactory: BodyFactory = createBodyFactory()): ResponseFactory => {
   return (status: number, reasonPhrase?: string): Response => {
     return {
       status,
       reasonPhrase: reasonPhrase ?? STATUS_CODES[status] ?? '',
       protocolVersion: '1.1',
       headers: {},
-      body: streamFactory(''),
+      body: bodyFactory(''),
     };
   };
 };

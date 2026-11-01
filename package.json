@@ -1,7 +1,7 @@
 {
   "name": "@chubbyts/chubbyts-http",
   "type": "module",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Http Request/Response factories, PSR-17 inspired.",
   "keywords": [
     "chubbyts",
@@ -50,7 +50,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@chubbyts/chubbyts-http-types": "^4.0.0",
+    "@chubbyts/chubbyts-http-types": "^4.1.0",
     "qs": "^6.17.0"
   },
   "devDependencies": {

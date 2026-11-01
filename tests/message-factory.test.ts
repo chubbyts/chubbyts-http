@@ -6,6 +6,8 @@ import { text as readStream } from 'node:stream/consumers';
 import { describe, expect, test } from 'vitest';
 import {
   createUriFactory,
+  createBodyFactory,
+  createBodyFromFileFactory,
   createStreamFactory,
   createStreamFromFileFactory,
   createServerRequestFactory,
@@ -129,32 +131,32 @@ describe('message-factory', () => {
     });
   });
 
-  describe('createStreamFactory', () => {
+  describe('createBodyFactory', () => {
     test('with content', async () => {
-      const streamFactory = createStreamFactory();
+      const bodyFactory = createBodyFactory();
 
-      expect(await readStream(streamFactory('test'))).toBe('test');
+      expect(await readStream(bodyFactory('test'))).toBe('test');
     });
 
     test('without content', async () => {
-      const streamFactory = createStreamFactory();
+      const bodyFactory = createBodyFactory();
 
-      expect(await readStream(streamFactory(''))).toBe('');
+      expect(await readStream(bodyFactory(''))).toBe('');
     });
 
     test('is not in object mode', () => {
-      const streamFactory = createStreamFactory();
+      const bodyFactory = createBodyFactory();
 
-      expect((streamFactory('test') as Readable).readableObjectMode).toBe(false);
+      expect((bodyFactory('test') as Readable).readableObjectMode).toBe(false);
     });
   });
 
-  describe('createStreamFromFileFactory', () => {
+  describe('createBodyFromFileFactory', () => {
     test('without existing file', async () => {
-      const streamFactory = createStreamFromFileFactory();
+      const bodyFromFileFactory = createBodyFromFileFactory();
 
       expect(() => {
-        streamFactory('/path/to/unknown/file');
+        bodyFromFileFactory('/path/to/unknown/file');
       }).toThrow('File with filename: "/path/to/unknown/file" does not exists.');
     });
 
@@ -163,10 +165,10 @@ describe('message-factory', () => {
 
       mkdirSync(directory);
 
-      const streamFactory = createStreamFromFileFactory();
+      const bodyFromFileFactory = createBodyFromFileFactory();
 
       expect(() => {
-        streamFactory(directory);
+        bodyFromFileFactory(directory);
       }).toThrow(`File with filename: "${directory}" does not exists.`);
 
       rmdirSync(directory);
@@ -177,12 +179,22 @@ describe('message-factory', () => {
 
       writeFileSync(filename, 'test');
 
-      const streamFactory = createStreamFromFileFactory();
-      const stream = streamFactory(filename);
+      const bodyFromFileFactory = createBodyFromFileFactory();
+      const body = bodyFromFileFactory(filename);
 
-      expect(await readStream(stream)).toBe('test');
+      expect(await readStream(body)).toBe('test');
 
       unlinkSync(filename);
+    });
+  });
+
+  describe('deprecated', () => {
+    test('createStreamFactory is createBodyFactory', () => {
+      expect(createStreamFactory).toBe(createBodyFactory);
+    });
+
+    test('createStreamFromFileFactory is createBodyFromFileFactory', () => {
+      expect(createStreamFromFileFactory).toBe(createBodyFromFileFactory);
     });
   });
 

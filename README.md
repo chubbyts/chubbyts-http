@@ -25,14 +25,14 @@ Implementation of the factories defined by [chubbyts/chubbyts-http-types][2], in
 A message body is an `AsyncIterable<Uint8Array>`, the factories create Node.js [`Readable`][6] streams (which are one),
 `getQueryParams` parses query strings with [qs][7].
 
-| Factory                       | Creates                 | Dependencies (with defaults)  |
-| ----------------------------- | ----------------------- | ----------------------------- |
-| `createUriFactory`            | `UriFactory`            |                               |
-| `createStreamFactory`         | `StreamFactory`         |                               |
-| `createStreamFromFileFactory` | `StreamFromFileFactory` |                               |
-| `createRequestFactory`        | `RequestFactory`        | `UriFactory`, `StreamFactory` |
-| `createServerRequestFactory`  | `ServerRequestFactory`  | `RequestFactory`              |
-| `createResponseFactory`       | `ResponseFactory`       | `StreamFactory`               |
+| Factory                      | Creates                | Dependencies (with defaults) |
+| ---------------------------- | ---------------------- | ---------------------------- |
+| `createUriFactory`           | `UriFactory`           |                              |
+| `createBodyFactory`          | `BodyFactory`          |                              |
+| `createBodyFromFileFactory`  | `BodyFromFileFactory`  |                              |
+| `createRequestFactory`       | `RequestFactory`       | `UriFactory`, `BodyFactory`  |
+| `createServerRequestFactory` | `ServerRequestFactory` | `RequestFactory`             |
+| `createResponseFactory`      | `ResponseFactory`      | `BodyFactory`                |
 
 | Helper factory               | Creates                | Dependencies (with defaults) |
 | ---------------------------- | ---------------------- | ---------------------------- |
@@ -53,7 +53,7 @@ A message body is an `AsyncIterable<Uint8Array>`, the factories create Node.js [
 Through [NPM](https://www.npmjs.com) as [@chubbyts/chubbyts-http][1].
 
 ```sh
-npm i @chubbyts/chubbyts-http@^3.0.0
+npm i @chubbyts/chubbyts-http@^3.1.0
 ```
 
 ## Usage
@@ -79,20 +79,23 @@ const uri = uriFactory(
 // }
 ```
 
-### Stream
+### Body
 
 ```ts
 import { text } from 'node:stream/consumers';
-import { createStreamFactory, createStreamFromFileFactory } from '@chubbyts/chubbyts-http/message-factory';
+import { createBodyFactory, createBodyFromFileFactory } from '@chubbyts/chubbyts-http/message-factory';
 
-const streamFactory = createStreamFactory();
-const streamFromFileFactory = createStreamFromFileFactory();
+const bodyFactory = createBodyFactory();
+const bodyFromFileFactory = createBodyFromFileFactory();
 
-const stream = streamFactory('content');
-const streamFromFile = streamFromFileFactory('/path/to/file'); // throws if there is no file at this path
+const body = bodyFactory('content');
+const bodyFromFile = bodyFromFileFactory('/path/to/file'); // throws if there is no file at this path
 
-await text(stream); // 'content'
+await text(body); // 'content'
 ```
+
+`createStreamFactory` and `createStreamFromFileFactory` are deprecated aliases of `createBodyFactory` and
+`createBodyFromFileFactory`.
 
 Any Node.js stream (like an `IncomingMessage`) or web `ReadableStream` already is a body, it needs no factory. Errors
 while reading (e.g. a failing file read) get thrown while iterating the body.
@@ -126,7 +129,7 @@ const response = responseFactory(404); // reasonPhrase: 'Not Found', empty body
 const customResponse = responseFactory(404, 'Gone Fishing'); // reasonPhrase: 'Gone Fishing'
 ```
 
-The body gets set with the response helpers, e.g. `responseHelpers.withBody(response, streamFactory('content'))`.
+The body gets set with the response helpers, e.g. `responseHelpers.withBody(response, bodyFactory('content'))`.
 
 ### Helpers
 
