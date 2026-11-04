@@ -10,7 +10,6 @@ export default defineConfig({
       tsconfig: 'tests/tsconfig.json',
     },
     coverage: {
-      all: true,
       clean: true,
       reporter: ['clover', ['html', { subdir: 'html' }], 'json', 'lcovonly', 'text'],
       provider: 'v8',
