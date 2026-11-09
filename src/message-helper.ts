@@ -1,5 +1,5 @@
 import { STATUS_CODES } from 'node:http';
-import type { Headers, Message, Query, Request, Uri } from '@chubbyts/chubbyts-http-types/message';
+import type { Message, Query, Request, Uri } from '@chubbyts/chubbyts-http-types/message';
 import type {
   CookieOptions,
   HeaderValue,
@@ -83,8 +83,6 @@ const getHeader = (message: Message, name: string): ReadonlyArray<string> => {
   return Object.hasOwn(message.headers, resolvedName) ? message.headers[resolvedName] : [];
 };
 
-const withHeaders = <M extends Message>(message: M, headers: Headers): M => ({ ...message, headers });
-
 const resolvePort = (scheme: string, port: number | undefined): number | undefined =>
   standardPorts.get(scheme) === port ? undefined : port;
 
@@ -103,23 +101,41 @@ export const createMessageHelpers = (): MessageHelpers => ({
   withHeader: (message, name, value) => {
     const resolvedName = resolveHeaderName(name);
 
-    return withHeaders(message, { ...message.headers, [resolvedName]: resolveHeaderValues(resolvedName, value) });
+    return { ...message, headers: { ...message.headers, [resolvedName]: resolveHeaderValues(resolvedName, value) } };
   },
+  // validated before anything gets set: an invalid entry throws without a partially changed message, Object.fromEntries
+  // defines the names as own properties, a `__proto__` header must not change the prototype of the headers
+  withHeaders: (message, headers) => ({
+    ...message,
+    headers: Object.fromEntries([
+      ...Object.entries(message.headers),
+      ...Object.entries(headers).map(([name, value]) => {
+        const resolvedName = resolveHeaderName(name);
+
+        return [resolvedName, resolveHeaderValues(resolvedName, value)] as const;
+      }),
+    ]),
+  }),
   withAddedHeader: (message, name, value) => {
     const resolvedName = resolveHeaderName(name);
 
-    return withHeaders(message, {
-      ...message.headers,
-      [resolvedName]: [...getHeader(message, resolvedName), ...resolveHeaderValues(resolvedName, value)],
-    });
+    return {
+      ...message,
+      headers: {
+        ...message.headers,
+        [resolvedName]: [...getHeader(message, resolvedName), ...resolveHeaderValues(resolvedName, value)],
+      },
+    };
   },
   withoutHeader: (message, name) => {
     const resolvedName = resolveHeaderName(name);
 
-    return withHeaders(
-      message,
-      Object.fromEntries(Object.entries(message.headers).filter(([headerName]) => headerName !== resolvedName)),
-    );
+    return {
+      ...message,
+      headers: Object.fromEntries(
+        Object.entries(message.headers).filter(([headerName]) => headerName !== resolvedName),
+      ),
+    };
   },
   withProtocolVersion: (message, protocolVersion) => {
     if (!protocolVersions.has(protocolVersion)) {

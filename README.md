@@ -45,7 +45,7 @@ A message body is an `AsyncIterable<Uint8Array>`, the factories create Node.js [
 ## Requirements
 
 - node: 22
-- [chubbyts/chubbyts-http-types][2]: ^4.0.0
+- [chubbyts/chubbyts-http-types][2]: ^4.3.0
 - [qs][7]: ^6.17.0
 
 ## Installation
@@ -53,7 +53,7 @@ A message body is an `AsyncIterable<Uint8Array>`, the factories create Node.js [
 Through [NPM](https://www.npmjs.com) as [@chubbyts/chubbyts-http][1].
 
 ```sh
-npm i @chubbyts/chubbyts-http@^3.1.0
+npm i @chubbyts/chubbyts-http@^3.2.0
 ```
 
 ## Usage
