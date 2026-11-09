@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream';
 import { describe, expect, test } from 'vitest';
 import type { Response, ServerRequest, Uri } from '@chubbyts/chubbyts-http-types/message';
+import type { MessageHelpers } from '@chubbyts/chubbyts-http-types/message-helper';
 import {
   createMessageHelpers,
   createRequestHelpers,
@@ -111,6 +112,53 @@ describe('message-helper', () => {
 
     test.each(['value\r\n', 'value\n', 'value\r', 'value\0'])('withHeader with invalid value %j', (value) => {
       expect(() => messageHelpers.withHeader(createResponse(), 'X-Name', ['valid', value])).toThrow(
+        'Header value of "x-name" must not contain CR, LF or NUL',
+      );
+    });
+
+    // optional within the types, always implemented by createMessageHelpers
+    const withHeaders = messageHelpers.withHeaders as NonNullable<MessageHelpers['withHeaders']>;
+
+    test('withHeaders', () => {
+      const response = createResponse({ accept: ['text/html'], 'content-type': ['text/plain'] });
+
+      const newResponse = withHeaders(response, {
+        'X-Custom': ['value1', 'value2'],
+        Accept: 'application/json',
+      });
+
+      expect(newResponse).not.toBe(response);
+      // like withHeader for each entry: existing headers keep their position, new ones get appended
+      expect(Object.entries(newResponse.headers)).toEqual([
+        ['accept', ['application/json']],
+        ['content-type', ['text/plain']],
+        ['x-custom', ['value1', 'value2']],
+      ]);
+      expect(newResponse.body).toBe(response.body);
+      expect(response.headers).toEqual({ accept: ['text/html'], 'content-type': ['text/plain'] });
+
+      // in order: the last entry of names differing in case only wins
+      expect(withHeaders(response, { Accept: 'first', accept: 'second' }).headers.accept).toEqual(['second']);
+
+      expect(withHeaders(response, {}).headers).toEqual(response.headers);
+    });
+
+    test('withHeaders with __proto__ header', () => {
+      const newResponse = withHeaders(createResponse(), Object.fromEntries([['__proto__', 'value']]));
+
+      expect(Object.hasOwn(newResponse.headers, '__proto__')).toBe(true);
+      expect(Object.getPrototypeOf(newResponse.headers)).toBe(Object.prototype);
+      expect(messageHelpers.getHeader(newResponse, '__proto__')).toEqual(['value']);
+    });
+
+    test('withHeaders with invalid name', () => {
+      expect(() => withHeaders(createResponse(), { valid: 'value', 'invalid name': 'value' })).toThrow(
+        'Header name "invalid name" is not a valid token',
+      );
+    });
+
+    test.each(['value\r\n', 'value\n', 'value\r', 'value\0'])('withHeaders with invalid value %j', (value) => {
+      expect(() => withHeaders(createResponse(), { valid: 'value', 'X-Name': ['valid', value] })).toThrow(
         'Header value of "x-name" must not contain CR, LF or NUL',
       );
     });
