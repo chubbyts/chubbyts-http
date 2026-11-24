@@ -53,7 +53,7 @@ A message body is an `AsyncIterable<Uint8Array>`, the factories create Node.js [
 Through [NPM](https://www.npmjs.com) as [@chubbyts/chubbyts-http][1].
 
 ```sh
-npm i @chubbyts/chubbyts-http@^3.2.0
+npm i @chubbyts/chubbyts-http@^3.2.1
 ```
 
 ## Usage
